@@ -9,6 +9,7 @@ const float HUD = 80.f; // height of the HUD at the top of the window
 const float Points_per_candy = 10.f; // points for each candy removed
 const float Rows = 8.f, Cols = 8.f; // number of rows and columns in the board
 const float windows_width = 600.f, windows_height = 680.f; // window dimensions
+const bool RUN_TESTS = true;
 int Moves_left;
 int CurrentScore;
 int TargetScore;
@@ -32,6 +33,10 @@ bool clicked = false; // whether the mouse is clicked or not
 int clickX = 0;
 int clickY = 0;
 int pressedKey = KEY_NONE;
+
+int board[Rows][Cols] = { 0 };
+bool marked[Rows][Cols] = { false };
+
 
 void handleInput(sf::RenderWindow& window)
 {
@@ -103,8 +108,62 @@ void drawGame(sf::RenderWindow& window)
 	}
 	window.display(); // display the contents of the window
 }
+int findMatches()
+{
+	for (int r=0;r<Rows;r++)
+	{
+		for (int c = 0;c < Cols;c++)
+			marked[r][c] = false; //marked all as false 
+		
+	}
+	for (int r = 0;r < Rows;r++)
+	{
+		for (int c = 0;c <= Cols - 3;c++)
+		{
+			if (board[r][c] != 0 &&
+				board[r][c] == board[r][c + 1] && board[r][c + 2]) //if match,marked=true
+			{
+				markes[r][c] = true;
+				marked[r][c + 1] = true;
+				marked[r][c + 2] = true;
+			}
+				
+		}
+	}
+	int count = 0;
+	for (int r = 0;r < Rows;r++)
+	{
+		for (int c = 0;c < Cols;c++)
+		{
+			if (marked[r][c])
+				count++;
+		}
+		//count how many cells are true
 
 
+	}return count;
+}
+void testEngine()
+
+{
+	cout << "DAY 2 Match TEST" << endl;
+
+	for (int r = 0;r < Rows;r++)
+	{
+		for (int c = 0;c < Cols;c++)
+			board[r][c] = 0;
+
+
+	}
+	//test for 3 rows
+	board[0][2] = 1; 
+	board[0][3] = 1;
+	board[0][4] = 1;
+	//test 2
+	board[0][2] = 2;
+	board[0][3] = 2;
+	//test 3
+}
 
 
 int main()
