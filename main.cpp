@@ -139,7 +139,7 @@ int main()
 		cerr << "Error: Could not load font\n"; // error handling; cerr is used for error messages
 	}
 	
-	while (window.isOpen()) // main game loop
+	while (window.isOpen()) // main game loop yayyyy
 	{
 		handleInput(window);
 		updateGame();
