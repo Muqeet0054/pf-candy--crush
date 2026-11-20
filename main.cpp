@@ -4,13 +4,14 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <fstream>
 
 using namespace std;
 
-const float CELL = 70.f;								   // one cell is 70 x 70 pixels
-const float BOARD_X = 20.f, BOARD_Y = 100.f;			   // top-left corner of the board
-const float HUD = 80.f;									   // height of the HUD at the top of the window
-const int Points_per_candy = 10;					   // points for each candy removed
+const float CELL = 70.f;					 // one cell is 70 x 70 pixels
+const float BOARD_X = 20.f, BOARD_Y = 100.f; // top-left corner of the board
+const float HUD = 80.f;						 // height of the HUD at the top of the window
+const int Points_per_candy = 10;			 // points for each candy removed
 const int NUM_COLORS = 6;
 const int Rows = 8, Cols = 8;							   // number of rows and columns in the board
 const float windows_width = 600.f, windows_height = 680.f; // window dimensions
@@ -41,6 +42,10 @@ int clickY = 0;
 int pressedKey = KEY_NONE;
 int menuIndex = 0;
 bool won = false;
+
+bool levelError = false;
+bool noSavedGame = false;
+bool quitGame = false;
 
 int board[Rows][Cols] = {0};
 bool marked[Rows][Cols] = {false};
@@ -93,13 +98,97 @@ void handleInput(sf::RenderWindow &window)
 		break;
 	}
 }
+bool loadLevel()
+{
+	ifstream fin("level.txt");
+	if (!fin) // file did not open
+	{
+		levelError = true;
+		return false;
+	}
+	int row, col;
+	fin >> row >> col;
+	if (row != Rows || col != Cols)
+	{
+		levelError = true;
+		return false;
+	}
+	fin >> Moves_left;
+	fin >> TargetScore;
+	CurrentScore = 0;
+	selRow = selCol = -1;
+	for (int r = 0; r < Rows; r++)
+	{
+		for (int c = 0; c < Cols; c++)
+		{
+			fin >> board[r][c];
+		}
+	}
+	if (!fin)
+	{
+		return false;
+	}
+	return true;
+}
 void updateGame()
 {
 	switch (gameState)
 	{
 	case Menu: // Handle menu state logic
+	{
+		if (pressedKey == KEY_DOWN)
+		{
+			noSavedGame = false;
+			levelError = false;
+			menuIndex++;
+			if (menuIndex == 3)
+			{
+				menuIndex = 0;
+			}
+		}
+		else if (pressedKey == KEY_UP)
+		{
+			noSavedGame = false;
+			levelError = false;
+
+			menuIndex--;
+			if (menuIndex == -1)
+			{
+				menuIndex = 2;
+			}
+		}
+		else if (pressedKey == KEY_ENTER)
+		{
+			switch (menuIndex)
+			{
+			case 0: // new game
+			{
+				if (loadLevel())
+				{
+					levelError = false;
+					gameState = Playing;
+				}
+				else
+				{
+					levelError = true;
+				}
+				break;
+			}
+			case 1: // continue
+			{
+				noSavedGame = true;
+				break;
+			}
+			case 2: // exit
+			{
+				quitGame = true;
+				break;
+			}
+			}
+		}
 
 		break;
+	}
 	case Playing: // Handle playing state logic
 
 		break;
@@ -133,6 +222,21 @@ void drawGame(sf::RenderWindow &window)
 			item.setFillColor((menuIndex == i) ? sf::Color::Yellow : sf::Color::White);
 			item.setPosition({200.f, 280.f + i * 65.f});
 			window.draw(item);
+		}
+
+		if (levelError)
+		{
+			sf::Text err(gameFont, "level.txt missing or invalid", 24);
+			err.setFillColor(sf::Color::Red);
+			err.setPosition({150.f, 500.f});
+			window.draw(err);
+		}
+		if (noSavedGame)
+		{
+			sf::Text msg(gameFont, "No saved game", 24);
+			msg.setFillColor(sf::Color::Red);
+			msg.setPosition({200.f, 540.f});
+			window.draw(msg);
 		}
 		break;
 	}
@@ -168,11 +272,27 @@ int findMatches()
 		for (int c = 0; c <= Cols - 3; c++)
 		{
 			if (board[r][c] != 0 &&
-				board[r][c] == board[r][c + 1] && board[r][c + 2]) // if match,marked=true
+				board[r][c] == board[r][c + 1] &&
+				board[r][c] == board[r][c + 2]) // if match,marked=true
 			{
 				marked[r][c] = true;
 				marked[r][c + 1] = true;
 				marked[r][c + 2] = true;
+			}
+		}
+	}
+
+	for (int r = 0; r <= Rows - 3; r++)
+	{
+		for (int c = 0; c < Cols; c++)
+		{
+			if (board[r][c] != 0 &&
+				board[r][c] == board[r + 1][c] &&
+				board[r][c] == board[r + 2][c]) // if match,marked=true
+			{
+				marked[r][c] = true;
+				marked[r + 1][c] = true;
+				marked[r + 2][c] = true;
 			}
 		}
 	}
@@ -188,68 +308,98 @@ int findMatches()
 	}
 	return count;
 }
-void testEngine()
-
+void clearBoard()
 {
-	cout << "DAY 2 Match TEST" << endl;
-
 	for (int r = 0; r < Rows; r++)
-	{
 		for (int c = 0; c < Cols; c++)
 			board[r][c] = 0;
-	}
-	// test for 3 rows
+}
+
+void checkTest(const string &name, int expected)
+{
+	int result = findMatches();
+	cout << name << ": got " << result << ", expected " << expected
+		 << (result == expected ? "  PASS" : "  FAIL") << endl;
+}
+
+void testEngine()
+{
+	cout << "DAY 3 MATCH TESTS" << endl;
+
+	clearBoard();
+	board[0][0] = 1;
+	board[0][1] = 1;
 	board[0][2] = 1;
-	board[0][3] = 1;
-	board[0][4] = 1;
-	// test 2
+	checkTest("Row of 3", 3);
+
+	clearBoard();
+	board[0][0] = 2;
+	board[1][0] = 2;
+	board[2][0] = 2;
+	checkTest("Column of 3", 3);
+
+	clearBoard();
+	for (int c = 0; c < 4; c++)
+		board[3][c] = 4;
+	checkTest("Row of 4", 4);
+
+	clearBoard();
+	for (int c = 0; c < 5; c++)
+		board[3][c] = 4;
+	checkTest("Row of 5", 5);
+
+	clearBoard(); // L shape: across 3 and down 3, sharing the corner [2][0]
+	board[2][0] = 5;
+	board[2][1] = 5;
+	board[2][2] = 5;
+	board[3][0] = 5;
+	board[4][0] = 5;
+	checkTest("L shape", 5);
+
+	clearBoard(); // T shape: across 3 on top, down 3 through the middle
+	board[2][0] = 6;
+	board[2][1] = 6;
+	board[2][2] = 6;
+	board[3][1] = 6;
+	board[4][1] = 6;
+	checkTest("T shape", 5);
+
+	clearBoard();
+	board[0][0] = 1;
+	board[0][1] = 1;
 	board[0][2] = 2;
-	board[0][3] = 2;
-	// test 3
+	checkTest("Pair only", 0);
 
-	int matchedCount = findMatches();
-	cout << "Total matched cells (Expected 3): " << matchedCount << endl
-		 << endl;
+	clearBoard();
+	checkTest("Empty cells", 0);
 
-	cout << "Board:" << endl;
-	for (int r = 0; r < Rows; r++)
-	{
-		for (int c = 0; c < Cols; c++)
-		{
-			cout << board[r][c] << " ";
-		}
-		cout << endl;
-	}
-
-	cout << "\nMarked (1 = true, 0 = false):" << endl;
-	for (int r = 0; r < Rows; r++)
-	{
-		for (int c = 0; c < Cols; c++)
-		{
-			cout << marked[r][c] << " ";
-		}
-		cout << endl;
-	}
+	if (loadLevel())
+		checkTest("Sample level", 0);
+	else
+		cout << "Sample level: could not load level.txt" << endl;
 }
 
 int main()
 {
 	srand(static_cast<unsigned int>(time(0)));
 
-	sf::RenderWindow window(sf::VideoMode({600, 680}), "Candy Crush"); // resolution of the window
-	window.setFramerateLimit(60);									   // fps limit
+	sf::RenderWindow window(sf::VideoMode({(unsigned)windows_width, (unsigned)windows_height}), "Candy Crush");
+	window.setFramerateLimit(60);
 
 	if (!gameFont.openFromFile("arial.ttf"))
 	{
-		cerr << "Error: Could not load font\n"; // error handling; cerr is used for error messages
+		cerr << "Error: Could not load font\n";
+		return 1; // stop, because drawing text without a font can crash
 	}
 
-	while (window.isOpen()) // main game loop yayyyy
+	if (RUN_TESTS)
+		testEngine();
+
+	while (window.isOpen() && !quitGame)
 	{
 		handleInput(window);
 		updateGame();
 		drawGame(window);
 	}
-
 	return 0;
 }
