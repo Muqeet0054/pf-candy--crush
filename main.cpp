@@ -1,10 +1,11 @@
 #include <SFML/Graphics.hpp>
-#include <cstdlib>
-#include <ctime>
 #include <iostream>
 #include <optional>
 #include <string>
 #include <fstream>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
 
 using namespace std;
 
@@ -50,6 +51,8 @@ bool quitGame = false;
 int board[Rows][Cols] = {0};
 bool marked[Rows][Cols] = {false};
 
+const int KEY_DEBUG = 5;
+
 sf::Color colors[7] = {
 	sf::Color(25, 25, 45),	// 0: empty
 	sf::Color::Red,			// 1
@@ -62,51 +65,125 @@ sf::Color colors[7] = {
 
 sf::Font gameFont;
 
-void handleInput(sf::RenderWindow &window)
+int findMatches()
 {
-	while (const std::optional event = window.pollEvent())
+	for (int r = 0; r < Rows; r++)
 	{
-		if (event->is<sf::Event::Closed>())
-			window.close();
-		else if (const auto *mouse = event->getIf<sf::Event::MouseButtonPressed>())
+		for (int c = 0; c < Cols; c++)
+			marked[r][c] = false; // marked all as false
+	}
+	for (int r = 0; r < Rows; r++)
+	{
+		for (int c = 0; c <= Cols - 3; c++)
 		{
-			if (mouse->button == sf::Mouse::Button::Left)
+			if (board[r][c] != 0 &&
+				board[r][c] == board[r][c + 1] &&
+				board[r][c] == board[r][c + 2]) // if match,marked=true
 			{
-				clickX = mouse->position.x;
-				clickY = mouse->position.y;
-				clicked = true;
-			}
-		}
-		else if (const auto *key = event->getIf<sf::Event::KeyPressed>())
-		{
-			if (key->code == sf::Keyboard::Key::Escape)
-			{
-				pressedKey = KEY_ESC;
-			}
-			else if (key->code == sf::Keyboard::Key::Enter)
-			{
-				pressedKey = KEY_ENTER;
-			}
-			else if (key->code == sf::Keyboard::Key::Up)
-			{
-				pressedKey = KEY_UP;
-			}
-			else if (key->code == sf::Keyboard::Key::Down)
-			{
-				pressedKey = KEY_DOWN;
+				marked[r][c] = true;
+				marked[r][c + 1] = true;
+				marked[r][c + 2] = true;
 			}
 		}
 	}
 
-	switch (gameState)
+	for (int r = 0; r <= Rows - 3; r++)
 	{
-	case Menu:
-		break;
-	case Playing:
-		break;
-	case GameOver:
-		break;
+		for (int c = 0; c < Cols; c++)
+		{
+			if (board[r][c] != 0 &&
+				board[r][c] == board[r + 1][c] &&
+				board[r][c] == board[r + 2][c]) // if match,marked=true
+			{
+				marked[r][c] = true;
+				marked[r + 1][c] = true;
+				marked[r + 2][c] = true;
+			}
+		}
 	}
+	int count = 0;
+	for (int r = 0; r < Rows; r++)
+	{
+		for (int c = 0; c < Cols; c++)
+		{
+			if (marked[r][c])
+				count++;
+		}
+		// count how many cells are true
+	}
+	return count;
+}
+void removeMarked()
+{
+	for (int r = 0; r < Rows; r++)
+	{
+		for (int c = 0; c < Cols; c++)
+		{
+			if (marked[r][c])
+			{
+				board[r][c] = 0;
+				CurrentScore += Points_per_candy;
+			}
+		}
+	}
+}
+void dropCandies()
+{
+	for (int c = 0; c < Cols; c++)
+	{
+		int writeRow = Rows - 1;
+
+		for (int r = Rows - 1; r >= 0; r--)
+		{
+			if (board[r][c] != 0)
+			{
+				board[writeRow][c] = board[r][c];
+				if (writeRow != r)
+					board[r][c] = 0;
+				writeRow--;
+			}
+		}
+
+		while (writeRow >= 0)
+		{
+			board[writeRow][c] = 0;
+			writeRow--;
+		}
+	}
+}
+void refill()
+{
+	for (int r = 0; r < Rows; r++)
+	{
+		for (int c = 0; c < Cols; c++)
+		{
+			if (board[r][c] == 0)
+			{
+				board[r][c] = rand() % NUM_COLORS + 1;
+			}
+		}
+	}
+}
+int resolveBoard()
+{
+	int totalCleared = 0;
+
+	int matches = findMatches();
+
+	while (matches > 0)
+	{
+		totalCleared += matches;
+
+		removeMarked();
+
+		dropCandies();
+
+		refill();
+
+		matches = findMatches();
+	}
+
+	return totalCleared;
 }
 bool loadLevel()
 {
@@ -138,6 +215,15 @@ bool loadLevel()
 	{
 		return false;
 	}
+	return true;
+}
+bool cellFromClick(int x, int y, int &row, int &col)
+{
+	if (x < 20 || x >= 580 || y < 100 || y >= 660)
+		return false;
+
+	col = (x - BOARD_X) / CELL;
+	row = (y - BOARD_Y) / CELL;
 	return true;
 }
 void updateGame()
@@ -200,8 +286,36 @@ void updateGame()
 		break;
 	}
 	case Playing: // Handle playing state logic
-
+	{
+		int row, col;
+		if (clicked)
+		{
+			if (cellFromClick(clickX, clickY, row, col))
+			{
+				if (selRow == -1)
+				{
+					selRow = row;
+					selCol = col;
+				}
+				else if (abs(row - selRow) + abs(col - selCol) == 1)
+				{
+					cout << "Swap\n";
+					selRow = selCol = -1;
+				}
+				else
+				{
+					selRow = row;
+					selCol = col;
+				}
+			}
+		}
+		if (pressedKey == KEY_DEBUG)
+		{
+			CurrentScore += 100;
+			Moves_left--;
+		}
 		break;
+	}
 	case GameOver: // Handle game over state logic
 	{
 		if (pressedKey == KEY_ENTER)
@@ -215,34 +329,96 @@ void updateGame()
 	pressedKey = KEY_NONE;
 }
 
+void handleInput(sf::RenderWindow &window)
+{
+	while (const std::optional event = window.pollEvent())
+	{
+		if (event->is<sf::Event::Closed>())
+			window.close();
+		else if (const auto *mouse = event->getIf<sf::Event::MouseButtonPressed>())
+		{
+			if (mouse->button == sf::Mouse::Button::Left)
+			{
+				clickX = mouse->position.x;
+				clickY = mouse->position.y;
+				clicked = true;
+			}
+		}
+		else if (const auto *key = event->getIf<sf::Event::KeyPressed>())
+		{
+			if (key->code == sf::Keyboard::Key::Escape)
+			{
+				pressedKey = KEY_ESC;
+			}
+			else if (key->code == sf::Keyboard::Key::Enter)
+			{
+				pressedKey = KEY_ENTER;
+			}
+			else if (key->code == sf::Keyboard::Key::Up)
+			{
+				pressedKey = KEY_UP;
+			}
+			else if (key->code == sf::Keyboard::Key::Down)
+			{
+				pressedKey = KEY_DOWN;
+			}
+			else if (key->code == sf::Keyboard::Key::D)
+			{
+				pressedKey = KEY_DEBUG;
+			}
+		}
+	}
+
+	switch (gameState)
+	{
+	case Menu:
+		break;
+	case Playing:
+		break;
+	case GameOver:
+		break;
+	}
+}
+
 void drawBoard(sf::RenderWindow &window)
 {
-	// created once, not inside the loops
 	static sf::RectangleShape cellBg({CELL, CELL});
-	static sf::CircleShape candy(28.f); // radius 28, inside a 70 x 70 cell
+	static sf::CircleShape candy(28.f);
 
 	cellBg.setFillColor(sf::Color(20, 25, 55));
-	cellBg.setOutlineThickness(1.f); // thin lighter outline = visible grid
+	cellBg.setOutlineThickness(1.f);
 	cellBg.setOutlineColor(sf::Color(60, 70, 130));
 
 	for (int r = 0; r < Rows; r++)
 	{
 		for (int c = 0; c < Cols; c++)
 		{
-			// dark square for the cell
 			cellBg.setPosition({BOARD_X + c * CELL, BOARD_Y + r * CELL});
 			window.draw(cellBg);
 
-			// candy on top (0 = empty, so nothing is drawn)
 			if (board[r][c] != 0)
 			{
 				candy.setFillColor(colors[board[r][c]]);
-				candy.setPosition({BOARD_X + c * CELL + 7, BOARD_Y + r * CELL + 7});
+
+				candy.setPosition({BOARD_X + c * CELL + 7,
+								   BOARD_Y + r * CELL + 7});
+
+				if (r == selRow && c == selCol)
+				{
+					candy.setOutlineThickness(4.f);
+					candy.setOutlineColor(sf::Color::White);
+				}
+				else
+				{
+					candy.setOutlineThickness(0.f);
+				}
+
 				window.draw(candy);
 			}
 		}
 	}
 }
+
 void drawGame(sf::RenderWindow &window)
 {
 	window.clear(sf::Color(15, 20, 45)); // clear the window with a dark color
@@ -284,8 +460,47 @@ void drawGame(sf::RenderWindow &window)
 		}
 		break;
 	}
-	case Playing: // Handle playing state logic
+	case Playing:
 	{
+		// HUD background
+		sf::RectangleShape hud({windows_width, HUD});
+		hud.setPosition({0.f, 0.f});
+		hud.setFillColor(sf::Color(10, 15, 35));
+		window.draw(hud);
+
+		// SCORE label and value
+		sf::Text scoreLabel(gameFont, "SCORE", 18);
+		scoreLabel.setFillColor(sf::Color::Cyan);
+		scoreLabel.setPosition({65.f, 8.f});
+		window.draw(scoreLabel);
+
+		sf::Text scoreValue(gameFont, std::to_string(CurrentScore), 24);
+		scoreValue.setFillColor(sf::Color::White);
+		scoreValue.setPosition({80.f, 35.f});
+		window.draw(scoreValue);
+
+		// MOVES label and value
+		sf::Text movesLabel(gameFont, "MOVES", 18);
+		movesLabel.setFillColor(sf::Color::Cyan);
+		movesLabel.setPosition({265.f, 8.f});
+		window.draw(movesLabel);
+
+		sf::Text movesValue(gameFont, std::to_string(Moves_left), 24);
+		movesValue.setFillColor(sf::Color::White);
+		movesValue.setPosition({280.f, 35.f});
+		window.draw(movesValue);
+
+		// TARGET label and value
+		sf::Text targetLabel(gameFont, "TARGET", 18);
+		targetLabel.setFillColor(sf::Color::Cyan);
+		targetLabel.setPosition({465.f, 8.f});
+		window.draw(targetLabel);
+
+		sf::Text targetValue(gameFont, std::to_string(TargetScore), 24);
+		targetValue.setFillColor(sf::Color::White);
+		targetValue.setPosition({480.f, 35.f});
+		window.draw(targetValue);
+
 		drawBoard(window);
 
 		break;
@@ -317,54 +532,7 @@ void drawGame(sf::RenderWindow &window)
 	}
 	window.display(); // display the contents of the window
 }
-int findMatches()
-{
-	for (int r = 0; r < Rows; r++)
-	{
-		for (int c = 0; c < Cols; c++)
-			marked[r][c] = false; // marked all as false
-	}
-	for (int r = 0; r < Rows; r++)
-	{
-		for (int c = 0; c <= Cols - 3; c++)
-		{
-			if (board[r][c] != 0 &&
-				board[r][c] == board[r][c + 1] &&
-				board[r][c] == board[r][c + 2]) // if match,marked=true
-			{
-				marked[r][c] = true;
-				marked[r][c + 1] = true;
-				marked[r][c + 2] = true;
-			}
-		}
-	}
 
-	for (int r = 0; r <= Rows - 3; r++)
-	{
-		for (int c = 0; c < Cols; c++)
-		{
-			if (board[r][c] != 0 &&
-				board[r][c] == board[r + 1][c] &&
-				board[r][c] == board[r + 2][c]) // if match,marked=true
-			{
-				marked[r][c] = true;
-				marked[r + 1][c] = true;
-				marked[r + 2][c] = true;
-			}
-		}
-	}
-	int count = 0;
-	for (int r = 0; r < Rows; r++)
-	{
-		for (int c = 0; c < Cols; c++)
-		{
-			if (marked[r][c])
-				count++;
-		}
-		// count how many cells are true
-	}
-	return count;
-}
 void clearBoard()
 {
 	for (int r = 0; r < Rows; r++)
@@ -430,49 +598,60 @@ void testEngine()
 	clearBoard();
 	checkTest("Empty cells", 0);
 
+	cout << "\n1000 RANDOM BOARD TESTS" << endl;
+
+	int passed = 0;
+	int failed = 0;
+
+	for (int test = 0; test < 1000; test++)
+	{
+		// Fill board with random candies
+		for (int r = 0; r < Rows; r++)
+		{
+			for (int c = 0; c < Cols; c++)
+			{
+				board[r][c] = rand() % NUM_COLORS + 1;
+			}
+		}
+
+		int oldScore = CurrentScore;
+
+		// Resolve all matches
+		int cleared = resolveBoard();
+
+		bool valid = true;
+
+		// Check 1: No matches should remain
+		if (findMatches() != 0)
+			valid = false;
+
+		// Check 2: No empty cells and no invalid colors
+		for (int r = 0; r < Rows; r++)
+		{
+			for (int c = 0; c < Cols; c++)
+			{
+				if (board[r][c] < 1 || board[r][c] > NUM_COLORS)
+					valid = false;
+			}
+		}
+
+		// Check 3: Score must increase by 10 per candy
+		if (CurrentScore - oldScore != cleared * Points_per_candy)
+			valid = false;
+
+		if (valid)
+			passed++;
+		else
+			failed++;
+	}
+
+	cout << "Passed: " << passed << endl;
+	cout << "Failed: " << failed << endl;
+
 	if (loadLevel())
 		checkTest("Sample level", 0);
 	else
 		cout << "Sample level: could not load level.txt" << endl;
-}
-void removeMarked()
-{
-	for (int r = 0; r < Rows; r++)
-	{
-		for (int c = 0; c < Cols; c++)
-		{
-			if (marked[r][c])
-			{
-				board[r][c] = 0;
-				CurrentScore += Points_per_candy;
-			}
-		}
-	}
-}
-
-void dropCandies()
-{
-	for (int c = 0; c < Cols; c++)
-	{
-		int writeRow = Rows - 1;
-
-		for (int r = Rows - 1; r >= 0; r--)
-		{
-			if (board[r][c] != 0)
-			{
-				board[writeRow][c] = board[r][c];
-				if (writeRow != r)
-					board[r][c] = 0;
-				writeRow--;
-			}
-		}
-
-		while (writeRow >= 0)
-		{
-			board[writeRow][c] = 0;
-			writeRow--;
-		}
-	}
 }
 
 int main()
