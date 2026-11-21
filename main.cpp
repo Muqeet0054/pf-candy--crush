@@ -50,6 +50,16 @@ bool quitGame = false;
 int board[Rows][Cols] = {0};
 bool marked[Rows][Cols] = {false};
 
+sf::Color colors[7] = {
+	sf::Color(25, 25, 45),	// 0: empty
+	sf::Color::Red,			// 1
+	sf::Color(255, 150, 0), // 2: orange
+	sf::Color::Yellow,		// 3
+	sf::Color::Green,		// 4
+	sf::Color::Blue,		// 5
+	sf::Color(170, 90, 255) // 6: purple
+};
+
 sf::Font gameFont;
 
 void handleInput(sf::RenderWindow &window)
@@ -193,11 +203,45 @@ void updateGame()
 
 		break;
 	case GameOver: // Handle game over state logic
-
+	{
+		if (pressedKey == KEY_ENTER)
+		{
+			gameState = Menu;
+		}
 		break;
+	}
 	}
 	clicked = false; // reset
 	pressedKey = KEY_NONE;
+}
+
+void drawBoard(sf::RenderWindow &window)
+{
+	// created once, not inside the loops
+	static sf::RectangleShape cellBg({CELL, CELL});
+	static sf::CircleShape candy(28.f); // radius 28, inside a 70 x 70 cell
+
+	cellBg.setFillColor(sf::Color(20, 25, 55));
+	cellBg.setOutlineThickness(1.f); // thin lighter outline = visible grid
+	cellBg.setOutlineColor(sf::Color(60, 70, 130));
+
+	for (int r = 0; r < Rows; r++)
+	{
+		for (int c = 0; c < Cols; c++)
+		{
+			// dark square for the cell
+			cellBg.setPosition({BOARD_X + c * CELL, BOARD_Y + r * CELL});
+			window.draw(cellBg);
+
+			// candy on top (0 = empty, so nothing is drawn)
+			if (board[r][c] != 0)
+			{
+				candy.setFillColor(colors[board[r][c]]);
+				candy.setPosition({BOARD_X + c * CELL + 7, BOARD_Y + r * CELL + 7});
+				window.draw(candy);
+			}
+		}
+	}
 }
 void drawGame(sf::RenderWindow &window)
 {
@@ -242,19 +286,32 @@ void drawGame(sf::RenderWindow &window)
 	}
 	case Playing: // Handle playing state logic
 	{
-		sf::Text playingText(gameFont, "PLAYING", 40);
-		playingText.setFillColor(sf::Color::White);
-		playingText.setPosition({210.f, 300.f});
-		window.draw(playingText);
+		drawBoard(window);
 
 		break;
 	}
 	case GameOver: // Handle game over state logic
 	{
-		sf::Text overText(gameFont, "GAME OVER", 40);
-		overText.setFillColor(sf::Color::Red);
-		overText.setPosition({180.f, 300.f});
-		window.draw(overText);
+		sf::Text title(gameFont, "", 45);
+		title.setPosition(sf::Vector2f(150, 200));
+
+		if (won)
+			title.setString("YOU WIN");
+		else
+			title.setString("GAME OVER");
+
+		title.setFillColor(sf::Color::Yellow);
+
+		sf::Text finalScore(gameFont, "Final score: " + std::to_string(CurrentScore), 28);
+
+		finalScore.setPosition(sf::Vector2f(190, 300));
+
+		sf::Text instruction(gameFont, "Press Enter", 24);
+		instruction.setPosition(sf::Vector2f(220, 400));
+
+		window.draw(title);
+		window.draw(finalScore);
+		window.draw(instruction);
 		break;
 	}
 	}
@@ -377,6 +434,45 @@ void testEngine()
 		checkTest("Sample level", 0);
 	else
 		cout << "Sample level: could not load level.txt" << endl;
+}
+void removeMarked()
+{
+	for (int r = 0; r < Rows; r++)
+	{
+		for (int c = 0; c < Cols; c++)
+		{
+			if (marked[r][c])
+			{
+				board[r][c] = 0;
+				CurrentScore += Points_per_candy;
+			}
+		}
+	}
+}
+
+void dropCandies()
+{
+	for (int c = 0; c < Cols; c++)
+	{
+		int writeRow = Rows - 1;
+
+		for (int r = Rows - 1; r >= 0; r--)
+		{
+			if (board[r][c] != 0)
+			{
+				board[writeRow][c] = board[r][c];
+				if (writeRow != r)
+					board[r][c] = 0;
+				writeRow--;
+			}
+		}
+
+		while (writeRow >= 0)
+		{
+			board[writeRow][c] = 0;
+			writeRow--;
+		}
+	}
 }
 
 int main()
