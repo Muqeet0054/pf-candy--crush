@@ -224,6 +224,18 @@ bool cellFromClick(int x, int y, int &row, int &col)
 	row = (y - BOARD_Y) / CELL;
 	return true;
 }
+void playermove(int r1, int c1, int r2, int c2)
+{
+	if (trySwap(r1, c1, r2, c2))
+	{
+		Moves_left--;
+
+		resolveBoard();
+		checkGameEnd();
+	}
+}//function call as needed
+
+
 void updateGame()
 {
 	switch (gameState)
@@ -436,16 +448,7 @@ void checkGameEnd()
 		gameState = GameOver;
 	}
 }
-void playermove(int r1, int c1, int r2, int c2)
-{
-	if (trySwap(r1, c1, r2, c2))
-	{
-		Moves_left--;
 
-		resolveBoard();
-		checkGameEnd();
-	}
-}
 void drawGame(sf::RenderWindow &window)
 {
 	window.clear(sf::Color(15, 20, 45)); // clear the window with a dark color
