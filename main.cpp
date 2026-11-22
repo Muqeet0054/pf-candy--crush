@@ -51,8 +51,6 @@ bool quitGame = false;
 int board[Rows][Cols] = {0};
 bool marked[Rows][Cols] = {false};
 
-const int KEY_DEBUG = 5;
-
 sf::Color colors[7] = {
 	sf::Color(25, 25, 45),	// 0: empty
 	sf::Color::Red,			// 1
@@ -299,7 +297,7 @@ void updateGame()
 				}
 				else if (abs(row - selRow) + abs(col - selCol) == 1)
 				{
-					cout << "Swap\n";
+					playermove(selRow, selCol, row, col);
 					selRow = selCol = -1;
 				}
 				else
@@ -308,11 +306,6 @@ void updateGame()
 					selCol = col;
 				}
 			}
-		}
-		if (pressedKey == KEY_DEBUG)
-		{
-			CurrentScore += 100;
-			Moves_left--;
 		}
 		break;
 	}
@@ -361,10 +354,6 @@ void handleInput(sf::RenderWindow &window)
 			else if (key->code == sf::Keyboard::Key::Down)
 			{
 				pressedKey = KEY_DOWN;
-			}
-			else if (key->code == sf::Keyboard::Key::D)
-			{
-				pressedKey = KEY_DEBUG;
 			}
 		}
 	}
@@ -418,7 +407,45 @@ void drawBoard(sf::RenderWindow &window)
 		}
 	}
 }
+bool trySwap(int r1, int c1, int r2, int c2)
+{
+	int temp = board[r1][c1];
+	board[r1][c1] = board[r2][c2];
+	board[r2][c2] = temp;
+	int matches = findMatches();
+	if (matches > 0)
+		return true;
+	else
+	{
+		// Swap them back
+		board[r2][c2] = board[r1][c1];
+		board[r1][c1] = temp;
+		return false;
+	}
+}
+void checkGameEnd()
+{
+	if (CurrentScore >= TargetScore)
+	{
+		won = true;
+		gameState = GameOver;
+	}
+	else if (Moves_left <= 0)
+	{
+		won = false;
+		gameState = GameOver;
+	}
+}
+void playermove(int r1, int c1, int r2, int c2)
+{
+	if (trySwap(r1, c1, r2, c2))
+	{
+		Moves_left--;
 
+		resolveBoard();
+		checkGameEnd();
+	}
+}
 void drawGame(sf::RenderWindow &window)
 {
 	window.clear(sf::Color(15, 20, 45)); // clear the window with a dark color
@@ -653,6 +680,8 @@ void testEngine()
 	else
 		cout << "Sample level: could not load level.txt" << endl;
 }
+
+
 
 int main()
 {
