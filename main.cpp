@@ -224,6 +224,37 @@ bool cellFromClick(int x, int y, int &row, int &col)
 	row = (y - BOARD_Y) / CELL;
 	return true;
 }
+
+bool trySwap(int r1, int c1, int r2, int c2)
+{
+	int temp = board[r1][c1];
+	board[r1][c1] = board[r2][c2];
+	board[r2][c2] = temp;
+	int matches = findMatches();
+	if (matches > 0)
+		return true;
+	else
+	{
+		// Swap them back
+		board[r2][c2] = board[r1][c1];
+		board[r1][c1] = temp;
+		return false;
+	}
+}
+
+void checkGameEnd()
+{
+	if (CurrentScore >= TargetScore)
+	{
+		won = true;
+		gameState = GameOver;
+	}
+	else if (Moves_left <= 0)
+	{
+		won = false;
+		gameState = GameOver;
+	}
+}
 void playermove(int r1, int c1, int r2, int c2)
 {
 	if (trySwap(r1, c1, r2, c2))
@@ -415,35 +446,6 @@ void drawBoard(sf::RenderWindow &window)
 				window.draw(candy);
 			}
 		}
-	}
-}
-bool trySwap(int r1, int c1, int r2, int c2)
-{
-	int temp = board[r1][c1];
-	board[r1][c1] = board[r2][c2];
-	board[r2][c2] = temp;
-	int matches = findMatches();
-	if (matches > 0)
-		return true;
-	else
-	{
-		// Swap them back
-		board[r2][c2] = board[r1][c1];
-		board[r1][c1] = temp;
-		return false;
-	}
-}
-void checkGameEnd()
-{
-	if (CurrentScore >= TargetScore)
-	{
-		won = true;
-		gameState = GameOver;
-	}
-	else if (Moves_left <= 0)
-	{
-		won = false;
-		gameState = GameOver;
 	}
 }
 
@@ -681,8 +683,6 @@ void testEngine()
 	else
 		cout << "Sample level: could not load level.txt" << endl;
 }
-
-
 
 int main()
 {
