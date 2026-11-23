@@ -104,7 +104,16 @@ main.cpp ......... all game code, grouped into sections by owner
 level.txt ........ starting board, number of moves and target score
 savegame.txt ..... saved game (created and emptied by the game)
 arial.ttf ........ font used for text
-screenshot.png ... screenshot of the game
+
+## Screenshots
+
+Gameplay:
+
+![Game](screenshot.png)
+
+Menu:
+
+![Menu](screenshot2.png)
 
 
 LEVEL.TXT FORMAT
