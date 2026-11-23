@@ -96,10 +96,10 @@ You need Windows with Visual Studio 2022 (workload: **Desktop development with C
 ## SCREENSHOTS
 
 ### Gameplay
-<img src="screenshot.png" width="450" alt="Candy Crush gameplay screenshot">
+<img src="screenshot.png" width="250" alt="Candy Crush gameplay screenshot">
 
 ### Menu
-<img src="screenshot2.png" width="450" alt="Candy Crush menu screenshot">
+<img src="screenshot2.png" width="250" alt="Candy Crush menu screenshot">
 
 ---
 
