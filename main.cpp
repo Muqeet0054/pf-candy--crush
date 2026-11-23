@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <vector>
 
 using namespace std;
 
@@ -50,6 +51,31 @@ bool quitGame = false;
 
 int board[Rows][Cols] = {0};
 bool marked[Rows][Cols] = {false};
+// ---------- animation ----------used AI
+enum AnimPhase
+{
+	AnimNone,
+	AnimSwap,
+	AnimBadSwap,
+	AnimClear,
+	AnimFall
+};
+AnimPhase animPhase = AnimNone;
+
+float offX[Rows][Cols] = {0}; // visual pixel offset of each candy (slides to 0)
+float offY[Rows][Cols] = {0};
+float clearT = 0.f; // 0..1 progress of the "pop" animation
+float badT = 0.f;	// 0..1 progress of the failed-swap wiggle
+int swapR1, swapC1, swapR2, swapC2;
+int combo = 0;
+float gameTime = 0.f;
+
+struct Particle
+{
+	float x, y, vx, vy, life;
+	sf::Color col;
+};
+vector<Particle> particles;
 
 sf::Color colors[7] = {
 	sf::Color(25, 25, 45),	// 0: empty
@@ -62,6 +88,7 @@ sf::Color colors[7] = {
 };
 
 sf::Font gameFont;
+sf::Texture bgTexture;
 
 int findMatches()
 {
@@ -201,6 +228,11 @@ bool loadLevel()
 	fin >> Moves_left;
 	fin >> TargetScore;
 	CurrentScore = 0;
+	animPhase = AnimNone;
+	particles.clear();
+	for (int r = 0; r < Rows; r++)
+		for (int c = 0; c < Cols; c++)
+			offX[r][c] = offY[r][c] = 0.f;
 	selRow = selCol = -1;
 	for (int r = 0; r < Rows; r++)
 	{
@@ -255,18 +287,169 @@ void checkGameEnd()
 		gameState = GameOver;
 	}
 }
+float approach(float v, float amt)
+{
+	if (v > 0)
+		return max(0.f, v - amt);
+	if (v < 0)
+		return min(0.f, v + amt);
+	return 0.f;
+}
+
+// returns true while any candy is still sliding
+bool updateOffsets(float dt)
+{
+	bool moving = false;
+	float step = 650.f * dt; // pixels per second
+	for (int r = 0; r < Rows; r++)
+		for (int c = 0; c < Cols; c++)
+			if (offX[r][c] != 0.f || offY[r][c] != 0.f)
+			{
+				offX[r][c] = approach(offX[r][c], step);
+				offY[r][c] = approach(offY[r][c], step);
+				if (offX[r][c] != 0.f || offY[r][c] != 0.f)
+					moving = true;
+			}
+	return moving;
+}
+
+void spawnParticles(int r, int c)
+{
+	float cx = BOARD_X + c * CELL + CELL / 2;
+	float cy = BOARD_Y + r * CELL + CELL / 2;
+	for (int i = 0; i < 8; i++)
+	{
+		float a = (rand() % 360) * 3.14159f / 180.f;
+		float s = 80.f + rand() % 160;
+		particles.push_back({cx, cy, cos(a) * s, sin(a) * s, 0.5f, colors[board[r][c]]});
+	}
+}
+
+void updateParticles(float dt)
+{
+	for (size_t i = 0; i < particles.size();)
+	{
+		Particle &p = particles[i];
+		p.life -= dt;
+		if (p.life <= 0.f)
+			particles.erase(particles.begin() + i);
+		else
+		{
+			p.x += p.vx * dt;
+			p.y += p.vy * dt;
+			p.vy += 300.f * dt; // gravity
+			i++;
+		}
+	}
+}
+
+// like dropCandies() + refill(), but sets offsets so candies fall smoothly
+void dropAndRefillAnimated()
+{
+	for (int c = 0; c < Cols; c++)
+	{
+		int writeRow = Rows - 1;
+		for (int r = Rows - 1; r >= 0; r--)
+		{
+			if (board[r][c] != 0)
+			{
+				if (writeRow != r)
+				{
+					board[writeRow][c] = board[r][c];
+					board[r][c] = 0;
+					offY[writeRow][c] = (r - writeRow) * CELL; // starts above
+				}
+				writeRow--;
+			}
+		}
+		int n = writeRow + 1; // number of empty cells at the top
+		for (int k = writeRow; k >= 0; k--)
+		{
+			board[k][c] = rand() % NUM_COLORS + 1;
+			offY[k][c] = -n * CELL; // fall in from above the board
+		}
+	}
+}
+
+void startClear()
+{
+	combo++;
+	for (int r = 0; r < Rows; r++)
+		for (int c = 0; c < Cols; c++)
+			if (marked[r][c])
+				spawnParticles(r, c);
+	animPhase = AnimClear;
+	clearT = 0.f;
+}
+
+void updateAnimation(float dt)
+{
+	switch (animPhase)
+	{
+	case AnimNone:
+		break;
+	case AnimSwap: // candies slide into place, then pop the matches
+		if (!updateOffsets(dt))
+		{
+			findMatches();
+			startClear();
+		}
+		break;
+	case AnimBadSwap: // wiggle then return
+		badT += dt / 0.3f;
+		if (badT >= 1.f)
+			animPhase = AnimNone;
+		break;
+	case AnimClear: // candies shrink away
+		clearT += dt / 0.25f;
+		if (clearT >= 1.f)
+		{
+			removeMarked();
+			dropAndRefillAnimated();
+			animPhase = AnimFall;
+		}
+		break;
+	case AnimFall: // candies fall, then check for cascades
+		if (!updateOffsets(dt))
+		{
+			if (findMatches() > 0)
+				startClear();
+			else
+			{
+				animPhase = AnimNone;
+				checkGameEnd();
+			}
+		}
+		break;
+	}
+}
 void playermove(int r1, int c1, int r2, int c2)
 {
+	swapR1 = r1;
+	swapC1 = c1;
+	swapR2 = r2;
+	swapC2 = c2;
 	if (trySwap(r1, c1, r2, c2))
 	{
 		Moves_left--;
-
-		resolveBoard();
-		checkGameEnd();
+		combo = 0;
+		// board is already swapped; make each candy visually start at the other's cell
+		offX[r1][c1] = (c2 - c1) * CELL;
+		offY[r1][c1] = (r2 - r1) * CELL;
+		offX[r2][c2] = (c1 - c2) * CELL;
+		offY[r2][c2] = (r1 - r2) * CELL;
+		animPhase = AnimSwap;
+	}
+	else
+	{
+		animPhase = AnimBadSwap;
+		badT = 0.f;
 	}
 }
-void updateGame()
+void updateGame(float dt)
 {
+	gameTime += dt;
+	updateParticles(dt);
 	switch (gameState)
 	{
 	case Menu: // Handle menu state logic
@@ -326,6 +509,9 @@ void updateGame()
 	}
 	case Playing: // Handle playing state logic
 	{
+		updateAnimation(dt);
+		if (animPhase != AnimNone || gameState != Playing)
+			break; // ignore clicks while animating
 		int row, col;
 		if (clicked)
 		{
@@ -415,62 +601,154 @@ void drawBoard(sf::RenderWindow &window)
 	static sf::RectangleShape cellBg({CELL, CELL});
 	static sf::CircleShape candy(28.f);
 
-	cellBg.setFillColor(sf::Color(20, 25, 55));
+	cellBg.setFillColor(sf::Color(20, 25, 55, 150));
 	cellBg.setOutlineThickness(1.f);
 	cellBg.setOutlineColor(sf::Color(60, 70, 130));
 
+	// clip drawing to the board area
+	sf::View clip(sf::FloatRect({BOARD_X, BOARD_Y}, {Cols * CELL, Rows * CELL}));
+	clip.setViewport(sf::FloatRect({BOARD_X / windows_width, BOARD_Y / windows_height},
+								   {Cols * CELL / windows_width, Rows * CELL / windows_height}));
+	window.setView(clip);
+
+	// backgrounds first
 	for (int r = 0; r < Rows; r++)
-	{
 		for (int c = 0; c < Cols; c++)
 		{
 			cellBg.setPosition({BOARD_X + c * CELL, BOARD_Y + r * CELL});
 			window.draw(cellBg);
+		}
 
-			if (board[r][c] != 0)
+	// then candies
+	for (int r = 0; r < Rows; r++)
+	{
+		for (int c = 0; c < Cols; c++)
+		{
+			if (board[r][c] == 0)
+				continue;
+
+			float ox = offX[r][c], oy = offY[r][c];
+
+			// failed-swap wiggle
+			if (animPhase == AnimBadSwap)
 			{
-				candy.setFillColor(colors[board[r][c]]);
-
-				candy.setPosition({BOARD_X + c * CELL + 7,
-								   BOARD_Y + r * CELL + 7});
-
-				if (r == selRow && c == selCol)
+				float s = sin(badT * 3.14159f) * CELL;
+				if (r == swapR1 && c == swapC1)
 				{
-					candy.setOutlineThickness(4.f);
-					candy.setOutlineColor(sf::Color::White);
+					ox += (swapC2 - swapC1) * s;
+					oy += (swapR2 - swapR1) * s;
 				}
-				else
+				else if (r == swapR2 && c == swapC2)
 				{
-					candy.setOutlineThickness(0.f);
+					ox += (swapC1 - swapC2) * s;
+					oy += (swapR1 - swapR2) * s;
 				}
-
-				window.draw(candy);
 			}
+
+			float rad = 28.f;
+			if (animPhase == AnimClear && marked[r][c])
+				rad = 28.f * (1.f - clearT); // shrink away
+
+			bool sel = (r == selRow && c == selCol);
+			if (sel)
+				rad += 2.f + 2.f * sin(gameTime * 10.f); // pulsing selection
+
+			float cx = BOARD_X + c * CELL + CELL / 2 + ox;
+			float cy = BOARD_Y + r * CELL + CELL / 2 + oy;
+
+			candy.setRadius(rad);
+			candy.setPosition({cx - rad, cy - rad});
+			candy.setFillColor(colors[board[r][c]]);
+			candy.setOutlineThickness(sel ? 4.f : 0.f);
+			candy.setOutlineColor(sf::Color::White);
+			window.draw(candy);
+			// shine highlight
+			sf::CircleShape shine(rad * 0.25f);
+			shine.setFillColor(sf::Color(255, 255, 255, 140));
+			shine.setPosition({cx - rad * 0.5f, cy - rad * 0.6f});
+			window.draw(shine);
 		}
 	}
-}
 
+	window.setView(window.getDefaultView()); // back to normal
+}
+void centerText(sf::Text &t, float x, float y)
+{
+	sf::FloatRect b = t.getLocalBounds();
+	t.setOrigin({b.position.x + b.size.x / 2.f, b.position.y + b.size.y / 2.f});
+	t.setPosition({x, y});
+}
 void drawGame(sf::RenderWindow &window)
 {
 	window.clear(sf::Color(15, 20, 45)); // clear the window with a dark color
+	static sf::Sprite bg(bgTexture);
+	bg.setScale({windows_width / bgTexture.getSize().x,
+				 windows_height / bgTexture.getSize().y});
+	window.draw(bg);
 	switch (gameState)
 	{
-	case Menu: // Handle menu state logic
+	case Menu:
 	{
-		// Title
-		sf::Text title(gameFont, "CANDY CRUSH", 48);
-		title.setFillColor(sf::Color::Cyan);
+		// floating candy bubbles
+		sf::CircleShape bubble;
+		for (int i = 0; i < 16; i++)
+		{
+			float rad = 10.f + (i % 4) * 6.f;
+			float x = 40.f + (i * 137) % 520 + 15.f * sin(gameTime + i);
+			float y = windows_height + 40.f -
+					  fmod(gameTime * (25.f + (i % 5) * 12.f) + i * 70.f, windows_height + 80.f);
+			sf::Color col = colors[i % 6 + 1];
+			col.a = 150;
+			bubble.setRadius(rad);
+			bubble.setOrigin({rad, rad});
+			bubble.setPosition({x, y});
+			bubble.setFillColor(col);
+			window.draw(bubble);
+		}
+
+		// title: shadow + outlined text that pulses
+		float pulse = 1.f + 0.05f * sin(gameTime * 3.f);
+		float ty = 160.f + 8.f * sin(gameTime * 2.f);
+
+		sf::Text shadow(gameFont, "CANDY CRUSH", 64);
+		shadow.setStyle(sf::Text::Bold);
+		shadow.setFillColor(sf::Color(0, 0, 0, 160));
+		centerText(shadow, 306.f, ty + 6.f);
+		shadow.setScale({pulse, pulse});
+		window.draw(shadow);
+
+		sf::Text title(gameFont, "CANDY CRUSH", 64);
 		title.setStyle(sf::Text::Bold);
-		title.setPosition({130.f, 120.f});
+		title.setFillColor(sf::Color((uint8_t)(200 + 55 * sin(gameTime * 2.f)),
+									 (uint8_t)(120 + 100 * sin(gameTime * 2.f + 2.f)),
+									 (uint8_t)(200 + 55 * sin(gameTime * 2.f + 4.f))));
+		title.setOutlineColor(sf::Color::White);
+		title.setOutlineThickness(3.f);
+		centerText(title, 300.f, ty);
+		title.setScale({pulse, pulse});
 		window.draw(title);
 
-		// Menu Options: New Game, Continue, Exit (Member C)
+		// buttons
 		string options[3] = {"New Game", "Continue", "Exit"};
 		for (int i = 0; i < 3; i++)
 		{
-			string label = (menuIndex == i) ? ("> " + options[i]) : ("  " + options[i]);
-			sf::Text item(gameFont, label, 32);
-			item.setFillColor((menuIndex == i) ? sf::Color::Yellow : sf::Color::White);
-			item.setPosition({200.f, 280.f + i * 65.f});
+			bool sel = (menuIndex == i);
+			float grow = sel ? 1.f + 0.04f * sin(gameTime * 8.f) : 1.f;
+			float by = 330.f + i * 80.f;
+
+			sf::RectangleShape btn({260.f, 60.f});
+			btn.setOrigin({130.f, 30.f});
+			btn.setPosition({300.f, by});
+			btn.setScale({grow, grow});
+			btn.setFillColor(sel ? sf::Color(255, 90, 160, 230) : sf::Color(30, 30, 80, 190));
+			btn.setOutlineThickness(3.f);
+			btn.setOutlineColor(sel ? sf::Color::Yellow : sf::Color(120, 120, 220));
+			window.draw(btn);
+
+			sf::Text item(gameFont, options[i], 32);
+			item.setFillColor(sf::Color::White);
+			centerText(item, 300.f, by - 4.f);
+			item.setScale({grow, grow});
 			window.draw(item);
 		}
 
@@ -478,14 +756,14 @@ void drawGame(sf::RenderWindow &window)
 		{
 			sf::Text err(gameFont, "level.txt missing or invalid", 24);
 			err.setFillColor(sf::Color::Red);
-			err.setPosition({150.f, 500.f});
+			centerText(err, 300.f, 590.f);
 			window.draw(err);
 		}
 		if (noSavedGame)
 		{
 			sf::Text msg(gameFont, "No saved game", 24);
 			msg.setFillColor(sf::Color::Red);
-			msg.setPosition({200.f, 540.f});
+			centerText(msg, 300.f, 630.f);
 			window.draw(msg);
 		}
 		break;
@@ -532,6 +810,25 @@ void drawGame(sf::RenderWindow &window)
 		window.draw(targetValue);
 
 		drawBoard(window);
+		// particles
+		sf::CircleShape dot(4.f);
+		for (const Particle &p : particles)
+		{
+			sf::Color col = p.col;
+			col.a = (uint8_t)(255 * (p.life / 0.5f));
+			dot.setFillColor(col);
+			dot.setPosition({p.x - 4.f, p.y - 4.f});
+			window.draw(dot);
+		}
+
+		// combo text
+		if (combo >= 2 && animPhase != AnimNone)
+		{
+			sf::Text comboText(gameFont, "COMBO x" + std::to_string(combo) + "!", 30);
+			comboText.setFillColor(sf::Color::Yellow);
+			comboText.setPosition({220.f, 55.f});
+			window.draw(comboText);
+		}
 
 		break;
 	}
@@ -691,19 +988,28 @@ int main()
 	sf::RenderWindow window(sf::VideoMode({(unsigned)windows_width, (unsigned)windows_height}), "Candy Crush");
 	window.setFramerateLimit(60);
 
-	if (!gameFont.openFromFile("arial.ttf"))
+	if (!gameFont.openFromFile("font.ttf"))
 	{
 		cerr << "Error: Could not load font\n";
 		return 1; // stop, because drawing text without a font can crash
 	}
+	if (!bgTexture.loadFromFile("background.jpeg"))
+		cerr << "Could not load background.png\n";
+
+	// stretch the image to fill the window:
+	// (skip this block if you use tiling below)
 
 	if (RUN_TESTS)
 		testEngine();
 
+	sf::Clock clock;
 	while (window.isOpen() && !quitGame)
 	{
+		float dt = clock.restart().asSeconds();
+		if (dt > 0.05f)
+			dt = 0.05f; // avoid huge jumps
 		handleInput(window);
-		updateGame();
+		updateGame(dt);
 		drawGame(window);
 	}
 	return 0;
