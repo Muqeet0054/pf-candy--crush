@@ -108,10 +108,10 @@ arial.ttf ........ font used for text
 ## Screenshots
 
 ### Gameplay
-![Gameplay](screenshot.png)
+<img src="screenshot.png" width="400">
 
 ### Menu
-![Menu](screenshot2.png)
+<img src="screenshot2.png" width="400">
 
 
 LEVEL.TXT FORMAT
