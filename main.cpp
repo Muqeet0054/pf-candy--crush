@@ -227,7 +227,8 @@ void fillBoard()
 				candy = rand() % NUM_COLORS + 1; // 1 to 6, 0 is empty
 			} while ((c >= 2 && board[r][c - 1] == candy && board[r][c - 2] == candy) ||
 				(r >= 2 && board[r - 1][c] == candy && board[r - 2][c] == candy));
-			board[r][c] = candy;
+			// if it makes a match, the loop picks a new random candy and checks again
+			board[r][c] = candy;// safe candy, so place it on the board
 		}
 	}
 }
