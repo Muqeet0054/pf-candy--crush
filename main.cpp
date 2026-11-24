@@ -214,6 +214,23 @@ int resolveBoard()
 
 	return totalCleared;
 }
+
+void fillBoard()
+{
+	for (int r = 0; r < Rows; r++)
+	{
+		for (int c = 0; c < Cols; c++)
+		{
+			int candy;
+			do
+			{
+				candy = rand() % NUM_COLORS + 1; // 1 to 6, 0 is empty
+			} while ((c >= 2 && board[r][c - 1] == candy && board[r][c - 2] == candy) ||
+				(r >= 2 && board[r - 1][c] == candy && board[r - 2][c] == candy));
+			board[r][c] = candy;
+		}
+	}
+}
 bool loadLevel()
 {
 	ifstream fin("level.txt");
@@ -999,6 +1016,7 @@ if (shuffling)
 
 int main()
 {
+
 	srand(static_cast<unsigned int>(time(0)));
 
 	sf::RenderWindow window(sf::VideoMode({(unsigned)windows_width, (unsigned)windows_height}), "Candy Crush");
@@ -1017,6 +1035,7 @@ int main()
 
 	if (RUN_TESTS)
 		testEngine();
+	fillBoard();
 
 	sf::Clock clock;
 	while (window.isOpen() && !quitGame)
