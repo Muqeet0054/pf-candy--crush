@@ -19,6 +19,10 @@ const int Rows = 8, Cols = 8;							   // number of rows and columns in the boar
 const float windows_width = 600.f, windows_height = 680.f; // window dimensions
 const bool RUN_TESTS = true;
 
+
+const int SHUFFLE_FRAMES = 60;   // about one second at 60 FPS
+bool shuffling = false;
+int shuffleTimer = 0;
 int Moves_left;
 int CurrentScore;
 int TargetScore;
@@ -979,6 +983,18 @@ void testEngine()
 		checkTest("Sample level", 0);
 	else
 		cout << "Sample level: could not load level.txt" << endl;
+}
+
+if (shuffling)
+{
+	sf::RectangleShape overlay({ 600.f, 680.f });
+	overlay.setFillColor(sf::Color(0, 0, 0, 160));
+	window.draw(overlay);
+
+	sf::Text msg(font, "Shuffling...", 48);
+	msg.setFillColor(sf::Color::White);
+	msg.setPosition({ 170.f, 320.f });
+	window.draw(msg);
 }
 
 int main()
