@@ -91,6 +91,7 @@ sf::Color colors[7] = {
 	sf::Color(170, 90, 255) // 6: purple
 };
 
+
 sf::Font gameFont;
 sf::Texture bgTexture;
 
@@ -621,6 +622,16 @@ void drawBoard(sf::RenderWindow &window)
 {
 	static sf::RectangleShape cellBg({CELL, CELL});
 	static sf::CircleShape candy(28.f);
+
+	sf::Vector2i mouse = sf::Mouse::getPosition(window);
+	int hr, hc;
+	if (cellFromClick(mouse.x, mouse.y, hr, hc))
+	{
+		sf::RectangleShape hover({ CELL, CELL });
+		hover.setPosition({ BOARD_X + hc * CELL, BOARD_Y + hr * CELL });
+		hover.setFillColor(sf::Color(255, 255, 255, 40));
+		window.draw(hover);
+	}
 
 	cellBg.setFillColor(sf::Color(20, 25, 55, 150));
 	cellBg.setOutlineThickness(1.f);
