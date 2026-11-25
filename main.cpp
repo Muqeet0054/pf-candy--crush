@@ -531,6 +531,11 @@ void updateGame(float dt)
 	}
 	case Playing: // Handle playing state logic
 	{
+		if (pressedKey == KEY_ESC)//Pressing Esc now sets gameState to Menu
+		{
+			gameState = Menu;
+			break;
+		}
 		updateAnimation(dt);
 		if (animPhase != AnimNone || gameState != Playing)
 			break; // ignore clicks while animating
