@@ -814,6 +814,23 @@ void drawGame(sf::RenderWindow &window)
 		hud.setFillColor(sf::Color(10, 15, 35));
 		window.draw(hud);
 
+		// progress bar
+		sf::RectangleShape barBack({ BAR_W, BAR_H });
+		barBack.setPosition({ BAR_X, BAR_Y });
+		barBack.setFillColor(sf::Color(40, 45, 80));
+		window.draw(barBack);
+
+		float ratio = 0.f;
+		if (targetScore > 0)
+			ratio = (float)score / targetScore;
+		if (ratio > 1.f)
+			ratio = 1.f;                     // never draw past the end
+
+		sf::RectangleShape barFill({ BAR_W * ratio, BAR_H });
+		barFill.setPosition({ BAR_X, BAR_Y });
+		barFill.setFillColor(sf::Color(60, 220, 140));
+		window.draw(barFill);
+
 		// SCORE label and value
 		sf::Text scoreLabel(gameFont, "SCORE", 18);
 		scoreLabel.setFillColor(sf::Color::Cyan);
