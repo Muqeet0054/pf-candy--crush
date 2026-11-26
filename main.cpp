@@ -1044,7 +1044,7 @@ int main()
 		return 1; // stop, because drawing text without a font can crash
 	}
 	if (!bgTexture.loadFromFile("background.jpeg"))
-		cerr << "Could not load background.png\n";
+		 cerr << "Could not load background.jpeg\n";
 
 	// stretch the image to fill the window:
 	// (skip this block if you use tiling below)
