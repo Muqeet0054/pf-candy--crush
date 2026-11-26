@@ -152,7 +152,7 @@ void removeMarked()
 			if (marked[r][c])
 			{
 				board[r][c] = 0;
-				CurrentScore += Points_per_candy;
+				CurrentScore += POINTS_PER_CANDY;
 			}
 		}
 	}
@@ -271,7 +271,8 @@ bool loadLevel()
 }
 bool cellFromClick(int x, int y, int &row, int &col)
 {
-	if (x < 20 || x >= 580 || y < 100 || y >= 660)
+	if (x < BOARD_X || x >= BOARD_X + Cols * CELL 
+	|| y < BOARD_Y || y >= BOARD_Y + Rows * CELL)
 		return false;
 
 	col = (x - BOARD_X) / CELL;
