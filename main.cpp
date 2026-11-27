@@ -94,7 +94,7 @@ sf::Color colors[7] = {
 
 sf::Font gameFont;
 sf::Texture bgTexture;
-
+// marks all cells in 3+ matches and returns how many
 int findMatches()
 {
 	for (int r = 0; r < Rows; r++)
@@ -143,6 +143,7 @@ int findMatches()
 	}
 	return count;
 }
+// sets marked candies to 0 and adds score
 void removeMarked()
 {
 	for (int r = 0; r < Rows; r++)
@@ -157,6 +158,7 @@ void removeMarked()
 		}
 	}
 }
+// moves candies down to fill empty cells
 void dropCandies()
 {
 	for (int c = 0; c < Cols; c++)
@@ -611,16 +613,6 @@ void handleInput(sf::RenderWindow &window)
 				pressedKey = KEY_DOWN;
 			}
 		}
-	}
-
-	switch (gameState)
-	{
-	case Menu:
-		break;
-	case Playing:
-		break;
-	case GameOver:
-		break;
 	}
 }
 
